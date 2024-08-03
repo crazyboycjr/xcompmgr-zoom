@@ -214,9 +214,7 @@ get_time_in_milliseconds (void)
 static fade *
 find_fade (const win *w)
 {
-    fade    *f;
-
-    for (f = fades; f; f = f->next)
+    for (fade *f = fades; f; f = f->next)
     {
 	if (f->w == w)
 	    return f;
@@ -227,9 +225,7 @@ find_fade (const win *w)
 static void
 dequeue_fade (Display *dpy, fade *f)
 {
-    fade    **prev;
-
-    for (prev = &fades; *prev; prev = &(*prev)->next)
+    for (fade **prev = &fades; *prev; prev = &(*prev)->next)
     {
 	if (*prev == f)
 	{
@@ -399,9 +395,7 @@ make_gaussian_map (Display *dpy, double r)
     conv	    *c;
     int		    size = ((int) ceil ((r * 3)) + 1) & ~1;
     int		    center = size / 2;
-    int		    x, y;
     double	    t;
-    double	    g;
 
     c = malloc (sizeof (conv) + size * size * sizeof (double));
     *c = (conv) {
@@ -409,19 +403,20 @@ make_gaussian_map (Display *dpy, double r)
 	.data = (double *) (c + 1)
     };
     t = 0.0;
-    for (y = 0; y < size; y++)
+    for (int y = 0; y < size; y++)
     {
-	for (x = 0; x < size; x++)
+	for (int x = 0; x < size; x++)
 	{
-	    g = gaussian (r, (double) (x - center), (double) (y - center));
+	    double g =
+		gaussian (r, (double) (x - center), (double) (y - center));
 	    t += g;
 	    c->data[y * size + x] = g;
 	}
     }
 /*    printf ("gaussian total %f\n", t); */
-    for (y = 0; y < size; y++)
+    for (int y = 0; y < size; y++)
     {
-	for (x = 0; x < size; x++)
+	for (int x = 0; x < size; x++)
 	{
 	    c->data[y*size + x] /= t;
 	}
@@ -449,7 +444,6 @@ make_gaussian_map (Display *dpy, double r)
 static unsigned char
 sum_gaussian (conv *map, double opacity, int x, int y, int width, int height)
 {
-    int	    fx, fy;
     double  *g_line = map->data;
     int	    g_size = map->size;
     int	    center = g_size / 2;
@@ -484,12 +478,12 @@ sum_gaussian (conv *map, double opacity, int x, int y, int width, int height)
     g_line = g_line + fy_start * g_size + fx_start;
 
     v = 0;
-    for (fy = fy_start; fy < fy_end; fy++)
+    for (int fy = fy_start; fy < fy_end; fy++)
     {
 	double  *g_data = g_line;
 	g_line += g_size;
 
-	for (fx = fx_start; fx < fx_end; fx++)
+	for (int fx = fx_start; fx < fx_end; fx++)
 	    v += *g_data++;
     }
     if (v > 1)
@@ -503,7 +497,6 @@ static void
 presum_gaussian (conv *map)
 {
     int center = map->size/2;
-    int opacity, x, y;
 
     Gsize = map->size;
 
@@ -515,18 +508,18 @@ presum_gaussian (conv *map)
     shadowCorner = malloc ((Gsize + 1) * (Gsize + 1) * 26);
     shadowTop = malloc ((Gsize + 1) * 26);
 
-    for (x = 0; x <= Gsize; x++)
+    for (int x = 0; x <= Gsize; x++)
     {
 	shadowTop[25 * (Gsize + 1) + x] = sum_gaussian (map, 1, x - center, center, Gsize * 2, Gsize * 2);
-	for(opacity = 0; opacity < 25; opacity++)
+	for (int opacity = 0; opacity < 25; opacity++)
 	    shadowTop[opacity * (Gsize + 1) + x] = shadowTop[25 * (Gsize + 1) + x] * opacity / 25;
-	for(y = 0; y <= x; y++)
+	for (int y = 0; y <= x; y++)
 	{
 	    shadowCorner[25 * (Gsize + 1) * (Gsize + 1) + y * (Gsize + 1) + x]
 		= sum_gaussian (map, 1, x - center, y - center, Gsize * 2, Gsize * 2);
 	    shadowCorner[25 * (Gsize + 1) * (Gsize + 1) + x * (Gsize + 1) + y]
 		= shadowCorner[25 * (Gsize + 1) * (Gsize + 1) + y * (Gsize + 1) + x];
-	    for(opacity = 0; opacity < 25; opacity++)
+	    for (int opacity = 0; opacity < 25; opacity++)
 	    {
 		shadowCorner[opacity * (Gsize + 1) * (Gsize + 1) + y * (Gsize + 1) + x]
 		    = shadowCorner[opacity * (Gsize + 1) * (Gsize + 1) + x * (Gsize + 1) + y]
@@ -546,7 +539,6 @@ make_shadow (Display *dpy, double opacity, int width, int height)
     int		    swidth = width + gsize;
     int		    sheight = height + gsize;
     int		    center = gsize / 2;
-    int		    x, y;
     unsigned char   d;
     int		    x_diff;
     int             opacity_int = (int)(opacity * 25);
@@ -588,9 +580,9 @@ make_shadow (Display *dpy, double opacity, int width, int height)
     if (xlimit > swidth / 2)
 	xlimit = (swidth + 1) / 2;
 
-    for (y = 0; y < ylimit; y++)
+    for (int y = 0; y < ylimit; y++)
     {
-	for (x = 0; x < xlimit; x++)
+	for (int x = 0; x < xlimit; x++)
 	{
 	    if (xlimit == Gsize && ylimit == Gsize)
 		d = shadowCorner[opacity_int * (Gsize + 1) * (Gsize + 1) + y * (Gsize + 1) + x];
@@ -609,7 +601,7 @@ make_shadow (Display *dpy, double opacity, int width, int height)
     x_diff = swidth - (gsize * 2);
     if (x_diff > 0 && ylimit > 0)
     {
-	for (y = 0; y < ylimit; y++)
+	for (int y = 0; y < ylimit; y++)
 	{
 	    if (ylimit == Gsize)
 		d = shadowTop[opacity_int * (Gsize + 1) + y];
@@ -624,13 +616,13 @@ make_shadow (Display *dpy, double opacity, int width, int height)
      * sides
      */
 
-    for (x = 0; x < xlimit; x++)
+    for (int x = 0; x < xlimit; x++)
     {
 	if (xlimit == Gsize)
 	    d = shadowTop[opacity_int * (Gsize + 1) + x];
 	else
 	    d = sum_gaussian (gaussianMap, opacity, x - center, center, width, height);
-	for (y = gsize; y < sheight - gsize; y++)
+	for (int y = gsize; y < sheight - gsize; y++)
 	{
 	    data[y * swidth + x] = d;
 	    data[y * swidth + (swidth - x - 1)] = d;
@@ -767,9 +759,7 @@ should_ignore (Display *dpy, unsigned long sequence)
 static win *
 find_win (Display *dpy, Window id)
 {
-    win	*w;
-
-    for (w = list; w; w = w->next)
+    for (win *w = list; w; w = w->next)
     {
 	if (w->id == id)
 	    return w;
@@ -795,10 +785,9 @@ root_tile (Display *dpy)
     unsigned char   *prop;
     Bool	    fill;
     XRenderPictureAttributes	pa;
-    int		    p;
 
     pixmap = None;
-    for (p = 0; backgroundProps[p]; p++)
+    for (int p = 0; backgroundProps[p]; p++)
     {
 	if (XGetWindowProperty (dpy, root, XInternAtom (dpy, backgroundProps[p], False),
 				0, 4, False, AnyPropertyType,
