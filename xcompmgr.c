@@ -268,9 +268,11 @@ set_fade (Display *dpy, win *w, double start, double finish, double step,
     if (!f)
     {
 	f = malloc (sizeof (fade));
-	f->next = NULL;
-	f->w = w;
-	f->cur = start;
+	*f = (fade) {
+	    .next = NULL,
+	    .w = w,
+	    .cur = start
+	};
 	enqueue_fade (dpy, f);
     }
     else if(!override)
@@ -400,8 +402,10 @@ make_gaussian_map (Display *dpy, double r)
     double	    g;
 
     c = malloc (sizeof (conv) + size * size * sizeof (double));
-    c->size = size;
-    c->data = (double *) (c + 1);
+    *c = (conv) {
+	.size = size,
+	.data = (double *) (c + 1)
+    };
     t = 0.0;
     for (y = 0; y < size; y++)
 	for (x = 0; x < size; x++)
@@ -700,10 +704,12 @@ solid_picture (Display *dpy, Bool argb, double a, double r, double g, double b)
 	return None;
     }
 
-    c.alpha = a * 0xffff;
-    c.red = r * 0xffff;
-    c.green = g * 0xffff;
-    c.blue = b * 0xffff;
+    c = (XRenderColor) {
+	.alpha = a * 0xffff,
+	.red = r * 0xffff,
+	.green = g * 0xffff,
+	.blue = b * 0xffff
+    };
     XRenderFillRectangle (dpy, PictOpSrc, picture, &c, 0, 0, 1, 1);
     XFreePixmap (dpy, pixmap);
     return picture;
@@ -733,8 +739,10 @@ set_ignore (Display *dpy, unsigned long sequence)
     ignore  *i = malloc (sizeof (ignore));
     if (!i)
 	return;
-    i->sequence = sequence;
-    i->next = NULL;
+    *i = (ignore) {
+	.sequence = sequence,
+	.next = NULL
+    };
     *ignore_tail = i;
     ignore_tail = &i->next;
 }
@@ -803,10 +811,12 @@ root_tile (Display *dpy)
 				    CPRepeat, &pa);
     if (fill)
     {
-	XRenderColor    c;
-
-	c.red = c.green = c.blue = 0x8080;
-	c.alpha = 0xffff;
+	XRenderColor	c = {
+	    .red = 0x8080,
+	    .green = 0x8080,
+	    .blue = 0x8080,
+	    .alpha = 0xffff
+	};
 	XRenderFillRectangle (dpy, PictOpSrc, picture, &c,
 			      0, 0, 1, 1);
     }
@@ -827,12 +837,13 @@ paint_root (Display *dpy)
 static XserverRegion
 win_extents (Display *dpy, win *w)
 {
-    XRectangle	    r;
+    XRectangle	    r = {
+	.x = w->a.x,
+	.y = w->a.y,
+	.width = w->a.width + w->a.border_width * 2,
+	.height = w->a.height + w->a.border_width * 2
+    };
 
-    r.x = w->a.x;
-    r.y = w->a.y;
-    r.width = w->a.width + w->a.border_width * 2;
-    r.height = w->a.height + w->a.border_width * 2;
     if (compMode != CompSimple && !(w->windowType == winDockAtom && excludeDockShadows))
     {
 	if (compMode == CompServerShadows || w->mode != WINDOW_ARGB)
@@ -861,10 +872,12 @@ win_extents (Display *dpy, win *w)
 						&w->shadow_width, &w->shadow_height);
 		}
 	    }
-	    sr.x = w->a.x + w->shadow_dx;
-	    sr.y = w->a.y + w->shadow_dy;
-	    sr.width = w->shadow_width;
-	    sr.height = w->shadow_height;
+	    sr = (XRectangle) {
+		.x = w->a.x + w->shadow_dx,
+		.y = w->a.y + w->shadow_dy,
+		.width = w->shadow_width,
+		.height = w->shadow_height
+	    };
 	    if (sr.x < r.x)
 	    {
 		r.width = (r.x + r.width) - sr.x;
@@ -913,11 +926,12 @@ paint_all (Display *dpy, XserverRegion region)
 
     if (!region)
     {
-	XRectangle  r;
-	r.x = 0;
-	r.y = 0;
-	r.width = root_width;
-	r.height = root_height;
+	XRectangle  r = {
+	    .x = 0,
+	    .y = 0,
+	    .width = root_width,
+	    .height = root_height
+	};
 	region = XFixesCreateRegion (dpy, &r, 1);
     }
 #if MONITOR_REPAINT
@@ -2311,10 +2325,12 @@ main (int argc, char **argv)
 			    size_expose = more;
 			}
 		    }
-		    expose_rects[n_expose].x = ev.xexpose.x;
-		    expose_rects[n_expose].y = ev.xexpose.y;
-		    expose_rects[n_expose].width = ev.xexpose.width;
-		    expose_rects[n_expose].height = ev.xexpose.height;
+		    expose_rects[n_expose] = (XRectangle) {
+			.x = ev.xexpose.x,
+			.y = ev.xexpose.y,
+			.width = ev.xexpose.width,
+			.height = ev.xexpose.height
+		    };
 		    n_expose++;
 		    if (ev.xexpose.count == 0)
 		    {
