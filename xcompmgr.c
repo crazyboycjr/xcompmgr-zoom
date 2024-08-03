@@ -1773,7 +1773,7 @@ shape_kind(int kind)
   case ShapeInput:
     return "ShapeInput";
   default:
-    sprintf (buf, "Shape %d", kind);
+    snprintf (buf, sizeof(buf), "Shape %d", kind);
     return buf;
   }
 }
@@ -1924,7 +1924,7 @@ ev_name (XEvent *ev)
 	{
 	    return "Shape";
 	}
-	sprintf (buf, "Event %d", ev->type);
+	snprintf (buf, sizeof(buf), "Event %d", ev->type);
 	return buf;
     }
 }
