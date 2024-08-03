@@ -17,6 +17,9 @@ m4_ifndef([XORG_MACROS_VERSION],
 XORG_MACROS_VERSION(1.8)
 XORG_DEFAULT_OPTIONS
 
+# Checks for library functions.
+AC_CHECK_FUNCS([reallocarray])
+
 PKG_CHECK_MODULES(XCOMPMGR,
         [xcomposite xfixes xdamage xrender xext xproto >= 7.0.25])
 

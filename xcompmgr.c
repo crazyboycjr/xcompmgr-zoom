@@ -46,6 +46,10 @@
 #include <X11/extensions/Xrender.h>
 #include <X11/extensions/shape.h>
 
+#ifndef HAVE_REALLOCARRAY
+#define reallocarray(old, num, size) realloc(old, (num) * (size))
+#endif
+
 #if COMPOSITE_MAJOR > 0 || COMPOSITE_MINOR >= 2
 #define HAS_NAME_WINDOW_PIXMAP 1
 #endif
@@ -2289,9 +2293,9 @@ main (int argc, char **argv)
 			{
 			    XRectangle *old = expose_rects;
 
-			    expose_rects = realloc (old,
-						    (size_expose + more) *
-						    sizeof (XRectangle));
+			    expose_rects = reallocarray (old,
+							 (size_expose + more),
+							 sizeof (XRectangle));
 			    if (expose_rects == NULL) {
 				expose_rects = old;
 				expose_root (dpy, root, expose_rects, n_expose);
@@ -2302,7 +2306,8 @@ main (int argc, char **argv)
 			}
 			else
 			{
-			    expose_rects = malloc (more * sizeof (XRectangle));
+			    expose_rects = reallocarray (NULL, more,
+							 sizeof (XRectangle));
 			    size_expose = more;
 			}
 		    }
