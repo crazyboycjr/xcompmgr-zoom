@@ -208,7 +208,7 @@ get_time_in_milliseconds (void)
 }
 
 static fade *
-find_fade (win *w)
+find_fade (const win *w)
 {
     fade    *f;
 
