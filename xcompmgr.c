@@ -230,6 +230,7 @@ dequeue_fade (Display *dpy, fade *f)
     fade    **prev;
 
     for (prev = &fades; *prev; prev = &(*prev)->next)
+    {
 	if (*prev == f)
 	{
 	    *prev = f->next;
@@ -238,6 +239,7 @@ dequeue_fade (Display *dpy, fade *f)
 	    free (f);
 	    break;
 	}
+    }
 }
 
 static void
@@ -408,18 +410,22 @@ make_gaussian_map (Display *dpy, double r)
     };
     t = 0.0;
     for (y = 0; y < size; y++)
+    {
 	for (x = 0; x < size; x++)
 	{
 	    g = gaussian (r, (double) (x - center), (double) (y - center));
 	    t += g;
 	    c->data[y * size + x] = g;
 	}
+    }
 /*    printf ("gaussian total %f\n", t); */
     for (y = 0; y < size; y++)
+    {
 	for (x = 0; x < size; x++)
 	{
 	    c->data[y*size + x] /= t;
 	}
+    }
     return c;
 }
 
@@ -521,9 +527,11 @@ presum_gaussian (conv *map)
 	    shadowCorner[25 * (Gsize + 1) * (Gsize + 1) + x * (Gsize + 1) + y]
 		= shadowCorner[25 * (Gsize + 1) * (Gsize + 1) + y * (Gsize + 1) + x];
 	    for(opacity = 0; opacity < 25; opacity++)
+	    {
 		shadowCorner[opacity * (Gsize + 1) * (Gsize + 1) + y * (Gsize + 1) + x]
 		    = shadowCorner[opacity * (Gsize + 1) * (Gsize + 1) + x * (Gsize + 1) + y]
 		    = shadowCorner[25 * (Gsize + 1) * (Gsize + 1) + y * (Gsize + 1) + x] * opacity / 25;
+	    }
 	}
     }
 }
@@ -581,6 +589,7 @@ make_shadow (Display *dpy, double opacity, int width, int height)
 	xlimit = (swidth + 1) / 2;
 
     for (y = 0; y < ylimit; y++)
+    {
 	for (x = 0; x < xlimit; x++)
 	{
 	    if (xlimit == Gsize && ylimit == Gsize)
@@ -592,6 +601,7 @@ make_shadow (Display *dpy, double opacity, int width, int height)
 	    data[(sheight - y - 1) * swidth + (swidth - x - 1)] = d;
 	    data[y * swidth + (swidth - x - 1)] = d;
 	}
+    }
 
     /*
      * top/bottom
@@ -760,8 +770,10 @@ find_win (Display *dpy, Window id)
     win	*w;
 
     for (w = list; w; w = w->next)
+    {
 	if (w->id == id)
 	    return w;
+    }
     return NULL;
 }
 
@@ -1522,8 +1534,10 @@ restack_win (Display *dpy, win *w, Window new_above)
 
 	/* unhook */
 	for (prev = &list; *prev; prev = &(*prev)->next)
+	{
 	    if ((*prev) == w)
 		break;
+	}
 	*prev = w->next;
 
 	/* rehook */
@@ -1635,6 +1649,7 @@ finish_destroy_win (Display *dpy, Window id, Bool gone)
     win	**prev, *w;
 
     for (prev = &list; (w = *prev); prev = &w->next)
+    {
 	if (w->id == id)
 	{
 	    if (gone)
@@ -1671,6 +1686,7 @@ finish_destroy_win (Display *dpy, Window id, Bool gone)
 	    free (w);
 	    break;
 	}
+    }
 }
 
 #if HAS_NAME_WINDOW_PIXMAP
