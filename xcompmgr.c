@@ -2287,10 +2287,18 @@ main (int argc, char **argv)
 		    {
 			if (expose_rects)
 			{
-			    expose_rects = realloc (expose_rects,
+			    XRectangle *old = expose_rects;
+
+			    expose_rects = realloc (old,
 						    (size_expose + more) *
 						    sizeof (XRectangle));
-			    size_expose += more;
+			    if (expose_rects == NULL) {
+				expose_rects = old;
+				expose_root (dpy, root, expose_rects, n_expose);
+				n_expose = 0;
+			    } else {
+				size_expose += more;
+			    }
 			}
 			else
 			{
