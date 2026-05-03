@@ -39,12 +39,13 @@ cc = meson.get_compiler('c')
 
 # Replaces AC_USE_SYSTEM_EXTENSIONS
 if host_machine.system() == 'sunos'
-    add_project_arguments('-D__EXTENSIONS__', language: ['c'])
+    system_extensions = '-D__EXTENSIONS__'
 elif host_machine.system() == 'netbsd'
-    add_project_arguments('-D_OPENBSD_SOURCE', language: ['c'])
+    system_extensions = '-D_OPENBSD_SOURCE'
 else
-    add_project_arguments('-D_GNU_SOURCE', language: ['c'])
+    system_extensions = '-D_GNU_SOURCE'
 endif
+add_project_arguments(system_extensions, language: ['c'])
 
 # Replacement for XORG_DEFAULT_OPTIONS
 if cc.has_argument('-fno-strict-aliasing')
@@ -69,6 +70,7 @@ deps += dep_libm
 # Checks for library functions
 has_reallocarray = cc.has_function(
   'reallocarray',
+  args: system_extensions,
   prefix: '#include <stdlib.h>'
 )
 if not has_reallocarray
@@ -76,6 +78,7 @@ if not has_reallocarray
   if libbsd_dep.found()
     has_reallocarray = cc.has_function(
       'reallocarray',
+      args: system_extensions,
       prefix: '#include <stdlib.h>',
       dependencies: libbsd_dep
     )
