@@ -152,8 +152,8 @@ static Atom		zoomAtom;
 /* opacity property name; sometime soon I'll write up an EWMH spec for it */
 #define OPACITY_PROP	"_NET_WM_WINDOW_OPACITY"
 
-/* zoom level property, the same as picom-zoom's */
-#define ZOOM_PROP	"_PICOM_ZOOM"
+/* target zoom level, set on the root by the window manager */
+#define ZOOM_PROP	"_SCREEN_ZOOM"
 
 #define TRANSLUCENT	0xe0000000
 #define OPAQUE		0xffffffff
