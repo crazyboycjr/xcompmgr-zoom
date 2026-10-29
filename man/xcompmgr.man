@@ -62,6 +62,29 @@ opacity, as with transset(1).
 .TP
 .B \-S
 Enables synchronous operation.  Useful for debugging.
+.SH ZOOM
+.B xcompmgr
+can magnify the whole screen around the pointer.
+The zoom level is set through the root window property
+.BR _PICOM_ZOOM ,
+of type CARDINAL and format 32, holding a single value: the zoom level in
+16.16 fixed point, that is, multiplied by 65536.
+A missing property, or a value of at most 65536, means no zoom, and levels
+above 16 are treated as 16.
+picom-zoom reads the same property, so the same bindings drive both.
+Typically a key or mouse binding of the window manager sets it; from a shell:
+.PP
+.RS
+.nf
+xprop \-root \-f _PICOM_ZOOM 32c \-set _PICOM_ZOOM 131072
+xprop \-root \-remove _PICOM_ZOOM
+.fi
+.RE
+.PP
+The zoom level changes smoothly, and the point under the pointer stays where
+it is, so the zoomed view follows the pointer.
+The cursor itself is not magnified.
+The zoom needs client-side compositing, so it does nothing with \-a.
 .SH BUGS
 Probably.  Please report any you find to
 https://gitlab.freedesktop.org/xorg/app/xcompmgr/.

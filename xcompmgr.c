@@ -147,9 +147,13 @@ static Atom		winUtilAtom;
 static Atom		winSplashAtom;
 static Atom		winDialogAtom;
 static Atom		winNormalAtom;
+static Atom		zoomAtom;
 
 /* opacity property name; sometime soon I'll write up an EWMH spec for it */
 #define OPACITY_PROP	"_NET_WM_WINDOW_OPACITY"
+
+/* zoom level property, the same as picom-zoom's */
+#define ZOOM_PROP	"_PICOM_ZOOM"
 
 #define TRANSLUCENT	0xe0000000
 #define OPAQUE		0xffffffff
@@ -197,6 +201,17 @@ static Bool		fadeTrans = False;
 
 static Bool		autoRedirect = False;
 
+#define ZOOM_MAX		16
+#define ZOOM_TIME_CONSTANT	0.040	/* seconds */
+#define ZOOM_SNAP		0.001
+#define ZOOM_POLL_INTERVAL	0.004	/* seconds */
+
+static double		zoomTarget = 1;	/* zoom level asked for */
+static double		zoomLevel = 1;	/* zoom level on screen */
+static double		zoomTime;	/* of the last zoom step */
+static int		zoomX, zoomY;	/* pointer position */
+static Bool		zoomShown;	/* the screen shows a zoomed frame */
+
 /* For shadow precomputation */
 static int		Gsize = -1;
 static unsigned char	*shadowCorner = NULL;
@@ -209,6 +224,15 @@ get_time_in_milliseconds (void)
 
     gettimeofday (&tv, NULL);
     return tv.tv_sec * 1000 + tv.tv_usec / 1000;
+}
+
+static double
+get_time_in_seconds (void)
+{
+    struct timespec ts;
+
+    clock_gettime (CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec + ts.tv_nsec / 1e9;
 }
 
 static fade *
@@ -919,6 +943,61 @@ border_size (Display *dpy, win *w)
     return border;
 }
 
+/*
+ * One axis of a zoomed frame, the same as in picom-zoom: screen pixel x shows
+ * rootBuffer at *start + (x + 0.5 - origin) / zoomLevel, and center stays in
+ * place.  Splitting the offset keeps the returned origin small enough for the
+ * 16 bit source offset of Composite.  The origin is rounded to whole pixels,
+ * which keeps nearest-neighbour samples off pixel edges at whole zoom levels,
+ * then clamped so that every screen pixel samples at least half a pixel
+ * inside [*start, end), where filtering blends in nothing from beyond.
+ */
+static int
+zoom_axis (int size, double center, int *start)
+{
+    double  view, origin, lowest, highest;
+    int	    end;
+
+    center = fmin (fmax (center, 0.5), size - 0.5);
+    view = center * (1 - 1 / zoomLevel);
+    *start = (int) floor (view) - 1;
+    if (*start < 0)
+	*start = 0;
+    end = (int) ceil (view + size / zoomLevel) + 1;
+    if (end > size)
+	end = size;
+    origin = round (*start * zoomLevel - center * (zoomLevel - 1));
+    lowest = ceil (size - 0.5 - (end - *start - 0.5) * zoomLevel);
+    highest = floor (-0.5 * (zoomLevel - 1));
+    /* barely above 1x no origin keeps both edges in, lowest comes closest */
+    return fmax (fmin (origin, highest), lowest);
+}
+
+/* magnify rootBuffer onto the screen around the middle of the pointer pixel */
+static void
+paint_zoomed (Display *dpy)
+{
+    int		x0, y0;
+    int		ox = zoom_axis (root_width, zoomX + 0.5, &x0);
+    int		oy = zoom_axis (root_height, zoomY + 0.5, &y0);
+    XFixed	scale = XDoubleToFixed (1 / zoomLevel);
+    XTransform	zoom = {{
+	{ scale, 0, XDoubleToFixed (x0) },
+	{ 0, scale, XDoubleToFixed (y0) },
+	{ 0, 0, XDoubleToFixed (1) }
+    }};
+    XTransform	identity = {{
+	{ XDoubleToFixed (1), 0, 0 },
+	{ 0, XDoubleToFixed (1), 0 },
+	{ 0, 0, XDoubleToFixed (1) }
+    }};
+
+    XRenderSetPictureTransform (dpy, rootBuffer, &zoom);
+    XRenderComposite (dpy, PictOpSrc, rootBuffer, None, rootPicture,
+		      -ox, -oy, 0, 0, 0, 0, root_width, root_height);
+    XRenderSetPictureTransform (dpy, rootBuffer, &identity);
+}
+
 static void
 paint_all (Display *dpy, XserverRegion region)
 {
@@ -1138,8 +1217,15 @@ paint_all (Display *dpy, XserverRegion region)
     if (rootBuffer != rootPicture)
     {
 	XFixesSetPictureClipRegion (dpy, rootBuffer, 0, 0, None);
-	XRenderComposite (dpy, PictOpSrc, rootBuffer, None, rootPicture,
-			  0, 0, 0, 0, 0, 0, root_width, root_height);
+	/* a zoomed frame changes the whole screen, and so does the next 1x one */
+	if (zoomLevel > 1 || zoomShown)
+	    XFixesSetPictureClipRegion (dpy, rootPicture, 0, 0, None);
+	if (zoomLevel > 1)
+	    paint_zoomed (dpy);
+	else
+	    XRenderComposite (dpy, PictOpSrc, rootBuffer, None, rootPicture,
+			      0, 0, 0, 0, 0, 0, root_width, root_height);
+	zoomShown = zoomLevel > 1;
     }
 }
 
@@ -1153,6 +1239,101 @@ add_damage (Display *dpy, XserverRegion damage)
     }
     else
 	allDamage = damage;
+}
+
+static Bool
+zoom_active (void)
+{
+    return zoomTarget > 1 || zoomLevel > 1;
+}
+
+static void
+zoom_read_target (Display *dpy)
+{
+    Atom	    actual;
+    int		    format;
+    unsigned long   n, left;
+    unsigned char   *data;
+    double	    target = 1;
+
+    if (XGetWindowProperty (dpy, root, zoomAtom, 0L, 1L, False, XA_CARDINAL,
+			    &actual, &format, &n, &left, &data) == Success && data)
+    {
+	/* 16.16 fixed point */
+	if (actual == XA_CARDINAL && format == 32 && n == 1)
+	    target = *(unsigned long *) data / 65536.0;
+	XFree (data);
+    }
+    target = fmin (fmax (target, 1), ZOOM_MAX);
+    if (target == zoomTarget)
+	return;
+    if (zoomLevel == zoomTarget)
+	zoomTime = get_time_in_seconds ();
+    zoomTarget = target;
+}
+
+/* shorten the poll timeout of the main loop to the next zoom step */
+static int
+zoom_timeout (int timeout)
+{
+    double  delay;
+
+    if (!zoom_active ())
+	return timeout;
+    delay = ceil ((zoomTime + ZOOM_POLL_INTERVAL - get_time_in_seconds ()) * 1000);
+    if (delay < 0)
+	delay = 0;
+    if (timeout < 0 || delay < timeout)
+	timeout = (int) delay;
+    return timeout;
+}
+
+/*
+ * X reports pointer motion only to clients that select it on the window under
+ * the pointer, so the zoom polls the pointer instead.
+ */
+static Bool
+zoom_query_pointer (Display *dpy)
+{
+    Window	    root_return, child_return;
+    int		    x, y, win_x, win_y;
+    unsigned int    mask;
+
+    if (!XQueryPointer (dpy, root, &root_return, &child_return, &x, &y,
+			&win_x, &win_y, &mask) ||
+	(x == zoomX && y == zoomY))
+	return False;
+    zoomX = x;
+    zoomY = y;
+    return True;
+}
+
+static void
+zoom_step (Display *dpy)
+{
+    double  now;
+    Bool    changed;
+
+    if (!zoom_active ())
+	return;
+    now = get_time_in_seconds ();
+    if (now < zoomTime + ZOOM_POLL_INTERVAL)
+	return;
+    changed = zoomLevel != zoomTarget;
+    if (changed)
+    {
+	/* ease in log space: zooming by a factor looks the same at any level */
+	zoomLevel = zoomTarget * pow (zoomLevel / zoomTarget,
+				      exp ((zoomTime - now) / ZOOM_TIME_CONSTANT));
+	if (fabs (zoomLevel / zoomTarget - 1) < ZOOM_SNAP)
+	    zoomLevel = zoomTarget;
+    }
+    zoomTime = now;
+    if (zoom_query_pointer (dpy))
+	changed = True;
+    /* nothing to draw into rootBuffer, but the screen needs a new frame */
+    if (changed)
+	add_damage (dpy, XFixesCreateRegion (dpy, NULL, 0));
 }
 
 static void
@@ -2211,6 +2392,7 @@ main (int argc, char **argv)
     winSplashAtom = XInternAtom (dpy, "_NET_WM_WINDOW_TYPE_SPLASH", False);
     winDialogAtom = XInternAtom (dpy, "_NET_WM_WINDOW_TYPE_DIALOG", False);
     winNormalAtom = XInternAtom (dpy, "_NET_WM_WINDOW_TYPE_NORMAL", False);
+    zoomAtom = XInternAtom (dpy, ZOOM_PROP, False);
 
     pa.subwindow_mode = IncludeInferiors;
 
@@ -2254,7 +2436,13 @@ main (int argc, char **argv)
     ufd.fd = ConnectionNumber (dpy);
     ufd.events = POLLIN;
     if (!autoRedirect)
+    {
+	/* already zoomed, as after a restart: show it at once */
+	zoom_read_target (dpy);
+	zoomLevel = zoomTarget;
+	zoom_query_pointer (dpy);
 	paint_all (dpy, None);
+    }
     for (;;)
     {
 	/*	dump_wins (); */
@@ -2263,7 +2451,7 @@ main (int argc, char **argv)
 		XFlush (dpy);
             if (!QLength (dpy))
             {
-        	 if (poll (&ufd, 1, fade_timeout()) == 0)
+        	 if (poll (&ufd, 1, zoom_timeout (fade_timeout())) == 0)
 		 {
 		    run_fades (dpy);
 		    break;
@@ -2390,6 +2578,8 @@ main (int argc, char **argv)
 			}
 		    }
 		}
+		if (ev.xproperty.window == root && ev.xproperty.atom == zoomAtom)
+		    zoom_read_target (dpy);
 		break;
 	    default:
 		if (ev.type == damage_event + XDamageNotify)
@@ -2403,6 +2593,7 @@ main (int argc, char **argv)
 		break;
 	    }
 	} while (QLength (dpy));
+	zoom_step (dpy);
 	if (allDamage && !autoRedirect)
 	{
 	    static int	paint;
