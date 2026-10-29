@@ -5,7 +5,7 @@ xcompmgr \- sample X compositing manager
 .SH SYNOPSIS
 .BI "xcompmgr [\-d " display "] [\-r " radius "]"
 .BI "[\-o " opacity "] [\-l " left-offset "]"
-.BI "[\-t " top-offset "] [\-acCfFnsS]"
+.BI "[\-t " top-offset "] [\-z " filter "] [\-acCfFnsS]"
 .SH DESCRIPTION
 .B xcompmgr
 is a sample compositing manager for X servers supporting the XFIXES, DAMAGE,
@@ -62,6 +62,15 @@ opacity, as with transset(1).
 .TP
 .B \-S
 Enables synchronous operation.  Useful for debugging.
+.TP
+.BI \-z\  filter
+Specifies how the screen is magnified while it is zoomed, see
+.BR ZOOM :
+.B nearest
+to show every pixel as a sharp block, or
+.B linear
+for a smooth picture.
+The default is nearest.
 .SH ZOOM
 .B xcompmgr
 can magnify the whole screen around the pointer.
@@ -84,6 +93,10 @@ xprop \-root \-remove _PICOM_ZOOM
 The zoom level changes smoothly, and the point under the pointer stays where
 it is, so the zoomed view follows the pointer.
 The cursor itself is not magnified.
+By default every pixel of the magnified screen becomes a sharp block, which
+shows exactly what is drawn; with
+.B \-z linear
+the magnified screen is smoothed instead.
 The zoom needs client-side compositing, so it does nothing with \-a.
 .SH BUGS
 Probably.  Please report any you find to

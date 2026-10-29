@@ -206,6 +206,7 @@ static Bool		autoRedirect = False;
 #define ZOOM_SNAP		0.001
 #define ZOOM_POLL_INTERVAL	0.004	/* seconds */
 
+static const char	*zoomFilter = FilterNearest;
 static double		zoomTarget = 1;	/* zoom level asked for */
 static double		zoomLevel = 1;	/* zoom level on screen */
 static double		zoomTime;	/* of the last zoom step */
@@ -993,9 +994,11 @@ paint_zoomed (Display *dpy)
     }};
 
     XRenderSetPictureTransform (dpy, rootBuffer, &zoom);
+    XRenderSetPictureFilter (dpy, rootBuffer, zoomFilter, NULL, 0);
     XRenderComposite (dpy, PictOpSrc, rootBuffer, None, rootPicture,
 		      -ox, -oy, 0, 0, 0, 0, root_width, root_height);
     XRenderSetPictureTransform (dpy, rootBuffer, &identity);
+    XRenderSetPictureFilter (dpy, rootBuffer, FilterNearest, NULL, 0);
 }
 
 static void
@@ -2195,6 +2198,8 @@ usage (const char *program)
     "      Draw server-side shadows with sharp edges.\n"
     "   -S\n"
     "      Enable synchronous operation (for debugging).\n"
+    "   -z filter\n"
+    "      Specifies how the zoomed screen is magnified: nearest or linear. (default nearest)\n"
         );
     exit (1);
 }
@@ -2268,7 +2273,7 @@ main (int argc, char **argv)
     char	    *display = NULL;
     int		    o;
 
-    while ((o = getopt (argc, argv, "D:I:O:d:r:o:l:t:scnfFCaS")) != -1)
+    while ((o = getopt (argc, argv, "D:I:O:d:r:o:l:t:z:scnfFCaS")) != -1)
     {
 	switch (o) {
 	case 'd':
@@ -2324,6 +2329,14 @@ main (int argc, char **argv)
 	    break;
 	case 't':
 	    shadowOffsetY = atoi (optarg);
+	    break;
+	case 'z':
+	    if (strcmp (optarg, "linear") == 0)
+		zoomFilter = FilterBilinear;
+	    else if (strcmp (optarg, "nearest") == 0)
+		zoomFilter = FilterNearest;
+	    else
+		usage (argv[0]);
 	    break;
 	default:
 	    usage (argv[0]);
