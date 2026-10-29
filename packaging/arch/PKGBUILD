@@ -1,0 +1,22 @@
+# Builds the working tree this file sits in.
+pkgname=xcompmgr-zoom
+pkgver=1.1.10
+pkgrel=1
+pkgdesc='Composite window effect manager for X.org, with full-desktop zoom'
+arch=('x86_64')
+url='https://gitlab.freedesktop.org/xorg/app/xcompmgr'
+license=('MIT')
+depends=('glibc' 'libx11' 'libxcomposite' 'libxdamage' 'libxext' 'libxfixes' 'libxrender')
+makedepends=('meson' 'xorgproto')
+provides=('xcompmgr')
+conflicts=('xcompmgr')
+
+build() {
+  arch-meson "$startdir/../.." build
+  meson compile -C build
+}
+
+package() {
+  meson install -C build --destdir "$pkgdir"
+  install -Dm644 "$startdir/../../COPYING" -t "$pkgdir/usr/share/licenses/$pkgname/"
+}
