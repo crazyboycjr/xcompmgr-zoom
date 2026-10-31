@@ -2200,6 +2200,8 @@ usage (const char *program)
     "      Enable synchronous operation (for debugging).\n"
     "   -z filter\n"
     "      Specifies how the zoomed screen is magnified: nearest or linear. (default nearest)\n"
+    "The zoom follows the root window property _SCREEN_ZOOM (CARDINAL/32, 16.16\n"
+    "fixed point), which the window manager sets; see ZOOM in xcompmgr(1).\n"
         );
     exit (1);
 }
